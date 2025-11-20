@@ -39,6 +39,9 @@ try:
         url='https://github.com/xArm-Developer/xArm-Python-SDK',
         packages=find_packages(),
         install_requires=requirements,
+        extras_require={
+            'prefect': ['prefect>=2.0.0'],
+        },
         # license='BSD',
         zip_safe=False,
         classifiers=[
