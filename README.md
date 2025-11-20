@@ -252,6 +252,8 @@ xArm Python SDK
     - Homing: `move_gohome_task`
     - State management: `get_state_task`, `set_state_task`, `set_mode_task`
     - Safety: `set_collision_sensitivity_task`
+    - Gripper: `set_gripper_enable_task`, `get_gripper_position_task`, `set_gripper_position_task`, `set_gripper_g2_position_task`
+    - BIO Gripper: `set_bio_gripper_enable_task`, `open_bio_gripper_task`, `close_bio_gripper_task`, `get_bio_gripper_status_task`, `set_bio_gripper_g2_position_task`
     - Error handling: `clean_error_task`, `clean_warn_task`, `get_err_warn_code_task`
   - Install with: `pip install xarm-python-sdk[prefect]`
 
@@ -272,6 +274,7 @@ xArm Python SDK
       get_position_task,
       set_position_task,
       move_gohome_task,
+      set_gripper_position_task,
   )
 
   @flow
@@ -285,6 +288,7 @@ xArm Python SDK
       # Use Prefect tasks for automatic logging and monitoring
       code, position = get_position_task(arm)
       set_position_task(arm, x=300, y=0, z=200, wait=True)
+      set_gripper_position_task(arm, pos=800, wait=True)
       move_gohome_task(arm, wait=True)
       
       arm.disconnect()

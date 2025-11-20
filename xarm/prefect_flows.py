@@ -17,7 +17,9 @@ Usage:
     from xarm.prefect_flows import (
         get_position_task,
         set_position_task,
-        move_gohome_task
+        move_gohome_task,
+        set_gripper_position_task,
+        open_bio_gripper_task
     )
     from xarm.wrapper import XArmAPI
     from prefect import flow
@@ -33,6 +35,7 @@ Usage:
         # Use Prefect tasks for operations
         code, position = get_position_task(arm)
         move_gohome_task(arm, wait=True)
+        set_gripper_position_task(arm, pos=800, wait=True)
         
         arm.disconnect()
 """
@@ -397,3 +400,238 @@ def get_err_warn_code_task(arm):
     else:
         logger.error(f"Failed to get error/warning codes, code: {code}")
     return code, err_warn
+
+
+# =============================================================================
+# GRIPPER CONTROL TASKS
+# =============================================================================
+
+@task
+def set_gripper_enable_task(arm, enable, **kwargs):
+    """
+    Prefect task: Enable or disable the gripper.
+    
+    Args:
+        arm: XArmAPI instance
+        enable: True to enable, False to disable
+    
+    Returns:
+        int: Status code
+    """
+    logger = get_run_logger()
+    action = "Enabling" if enable else "Disabling"
+    logger.info(f"{action} gripper")
+    code = arm.set_gripper_enable(enable, **kwargs)
+    if code == 0:
+        logger.info(f"Gripper {'enabled' if enable else 'disabled'} successfully")
+    else:
+        logger.error(f"Failed to {'enable' if enable else 'disable'} gripper, code: {code}")
+    return code
+
+
+@task
+def get_gripper_position_task(arm, **kwargs):
+    """
+    Prefect task: Get the current gripper position.
+    
+    Args:
+        arm: XArmAPI instance
+    
+    Returns:
+        tuple: (code, position)
+    """
+    logger = get_run_logger()
+    logger.info("Getting gripper position")
+    code, position = arm.get_gripper_position(**kwargs)
+    if code == 0:
+        logger.info(f"Gripper position: {position}")
+    else:
+        logger.error(f"Failed to get gripper position, code: {code}")
+    return code, position
+
+
+@task
+def set_gripper_position_task(arm, pos, wait=False, speed=None, auto_enable=False, 
+                              timeout=None, **kwargs):
+    """
+    Prefect task: Set the gripper position.
+    
+    Args:
+        arm: XArmAPI instance
+        pos: Target position
+        wait: Wait for completion
+        speed: Gripper speed (r/min)
+        auto_enable: Auto enable gripper if not enabled
+        timeout: Maximum waiting time (seconds)
+    
+    Returns:
+        int: Status code
+    """
+    logger = get_run_logger()
+    logger.info(f"Setting gripper position to: {pos}")
+    code = arm.set_gripper_position(pos, wait=wait, speed=speed, auto_enable=auto_enable,
+                                    timeout=timeout, **kwargs)
+    if code == 0:
+        logger.info("Gripper position set successfully")
+    else:
+        logger.error(f"Failed to set gripper position, code: {code}")
+    return code
+
+
+@task
+def set_gripper_g2_position_task(arm, pos, speed=100, force=50, wait=False, 
+                                 timeout=None, **kwargs):
+    """
+    Prefect task: Set the position of the xArm Gripper G2.
+    
+    Args:
+        arm: XArmAPI instance
+        pos: Gripper position 0-84 (mm)
+        speed: Gripper speed 15-225 (mm/s), default 100
+        force: Gripper force 1-100, default 50
+        wait: Wait for completion
+        timeout: Maximum waiting time (seconds)
+    
+    Returns:
+        int: Status code
+    """
+    logger = get_run_logger()
+    logger.info(f"Setting Gripper G2 position to: {pos}mm (speed={speed}, force={force})")
+    code = arm.set_gripper_g2_position(pos, speed=speed, force=force, wait=wait,
+                                       timeout=timeout, **kwargs)
+    if code == 0:
+        logger.info("Gripper G2 position set successfully")
+    else:
+        logger.error(f"Failed to set Gripper G2 position, code: {code}")
+    return code
+
+
+# =============================================================================
+# BIO GRIPPER CONTROL TASKS
+# =============================================================================
+
+@task
+def set_bio_gripper_enable_task(arm, enable=True, wait=True, timeout=3):
+    """
+    Prefect task: Enable or disable the BIO gripper.
+    
+    Args:
+        arm: XArmAPI instance
+        enable: True to enable, False to disable
+        wait: Wait for completion
+        timeout: Maximum waiting time (seconds)
+    
+    Returns:
+        int: Status code
+    """
+    logger = get_run_logger()
+    action = "Enabling" if enable else "Disabling"
+    logger.info(f"{action} BIO gripper")
+    code = arm.set_bio_gripper_enable(enable=enable, wait=wait, timeout=timeout)
+    if code == 0:
+        logger.info(f"BIO gripper {'enabled' if enable else 'disabled'} successfully")
+    else:
+        logger.error(f"Failed to {'enable' if enable else 'disable'} BIO gripper, code: {code}")
+    return code
+
+
+@task
+def open_bio_gripper_task(arm, speed=0, wait=True, timeout=5, **kwargs):
+    """
+    Prefect task: Open the BIO gripper.
+    
+    Args:
+        arm: XArmAPI instance
+        speed: Speed value, default 0 (not set)
+        wait: Wait for completion
+        timeout: Maximum waiting time (seconds)
+    
+    Returns:
+        int: Status code
+    """
+    logger = get_run_logger()
+    logger.info("Opening BIO gripper")
+    code = arm.open_bio_gripper(speed=speed, wait=wait, timeout=timeout, **kwargs)
+    if code == 0:
+        logger.info("BIO gripper opened successfully")
+    else:
+        logger.error(f"Failed to open BIO gripper, code: {code}")
+    return code
+
+
+@task
+def close_bio_gripper_task(arm, speed=0, wait=True, timeout=5, **kwargs):
+    """
+    Prefect task: Close the BIO gripper.
+    
+    Args:
+        arm: XArmAPI instance
+        speed: Speed value, default 0 (not set)
+        wait: Wait for completion
+        timeout: Maximum waiting time (seconds)
+    
+    Returns:
+        int: Status code
+    """
+    logger = get_run_logger()
+    logger.info("Closing BIO gripper")
+    code = arm.close_bio_gripper(speed=speed, wait=wait, timeout=timeout, **kwargs)
+    if code == 0:
+        logger.info("BIO gripper closed successfully")
+    else:
+        logger.error(f"Failed to close BIO gripper, code: {code}")
+    return code
+
+
+@task
+def get_bio_gripper_status_task(arm):
+    """
+    Prefect task: Get the status of the BIO gripper.
+    
+    Args:
+        arm: XArmAPI instance
+    
+    Returns:
+        tuple: (code, status)
+    """
+    logger = get_run_logger()
+    logger.info("Getting BIO gripper status")
+    code, status = arm.get_bio_gripper_status()
+    if code == 0:
+        motion_state = status & 0x03
+        enable_state = (status >> 2) & 0x03
+        motion_names = {0: "stop", 1: "motion", 2: "catch", 3: "error"}
+        enable_names = {0: "not enabled", 1: "enabling", 2: "enabled"}
+        logger.info(f"BIO gripper status: {motion_names.get(motion_state, motion_state)}, "
+                   f"{enable_names.get(enable_state, enable_state)}")
+    else:
+        logger.error(f"Failed to get BIO gripper status, code: {code}")
+    return code, status
+
+
+@task
+def set_bio_gripper_g2_position_task(arm, pos, speed=2000, force=100, wait=True, 
+                                     timeout=5, **kwargs):
+    """
+    Prefect task: Set the position of the BIO Gripper G2.
+    
+    Args:
+        arm: XArmAPI instance
+        pos: Gripper position
+        speed: Gripper speed, default 2000
+        force: Gripper force, default 100
+        wait: Wait for completion
+        timeout: Maximum waiting time (seconds)
+    
+    Returns:
+        int: Status code
+    """
+    logger = get_run_logger()
+    logger.info(f"Setting BIO Gripper G2 position to: {pos} (speed={speed}, force={force})")
+    code = arm.set_bio_gripper_g2_position(pos, speed=speed, force=force, wait=wait,
+                                           timeout=timeout, **kwargs)
+    if code == 0:
+        logger.info("BIO Gripper G2 position set successfully")
+    else:
+        logger.error(f"Failed to set BIO Gripper G2 position, code: {code}")
+    return code

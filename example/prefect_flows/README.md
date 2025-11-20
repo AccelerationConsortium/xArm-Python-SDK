@@ -50,6 +50,19 @@ The `xarm.prefect_flows` module provides the following task decorators:
 ### Safety
 - `set_collision_sensitivity_task`: Set collision sensitivity
 
+### Gripper Control
+- `set_gripper_enable_task`: Enable/disable gripper
+- `get_gripper_position_task`: Get current gripper position
+- `set_gripper_position_task`: Set gripper position
+- `set_gripper_g2_position_task`: Set Gripper G2 position
+
+### BIO Gripper Control
+- `set_bio_gripper_enable_task`: Enable/disable BIO gripper
+- `open_bio_gripper_task`: Open BIO gripper
+- `close_bio_gripper_task`: Close BIO gripper
+- `get_bio_gripper_status_task`: Get BIO gripper status
+- `set_bio_gripper_g2_position_task`: Set BIO Gripper G2 position
+
 ### Error Handling
 - `clean_error_task`: Clear error state
 - `clean_warn_task`: Clear warning state
@@ -87,6 +100,36 @@ This flow:
 3. Moves all joints to target positions
 4. Returns to home
 
+### Gripper Control Flow
+
+Demonstrates standard gripper operations:
+
+```bash
+python simple_movement_flow.py 192.168.1.113 gripper
+```
+
+This flow:
+1. Connects to the robot
+2. Enables the gripper
+3. Opens the gripper (position 850)
+4. Closes the gripper (position 0)
+5. Logs position at each step
+
+### BIO Gripper Control Flow
+
+Demonstrates BIO gripper operations:
+
+```bash
+python simple_movement_flow.py 192.168.1.113 bio
+```
+
+This flow:
+1. Connects to the robot
+2. Enables the BIO gripper
+3. Opens the BIO gripper
+4. Closes the BIO gripper
+5. Opens it again
+
 ## Usage Pattern
 
 Here's a basic pattern for using Prefect tasks with xArm:
@@ -98,6 +141,8 @@ from xarm.prefect_flows import (
     get_position_task,
     set_position_task,
     move_gohome_task,
+    set_gripper_enable_task,
+    set_gripper_position_task,
 )
 
 @flow
@@ -115,6 +160,11 @@ def my_robot_flow(ip: str):
         # Use Prefect tasks for operations
         code, position = get_position_task(arm)
         set_position_task(arm, x=300, y=0, z=200, wait=True)
+        
+        # Gripper operations
+        set_gripper_enable_task(arm, enable=True)
+        set_gripper_position_task(arm, pos=850, wait=True)
+        
         move_gohome_task(arm, wait=True)
         
     finally:

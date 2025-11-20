@@ -39,6 +39,11 @@ from xarm.prefect_flows import (
     set_mode_task,
     motion_enable_task,
     set_collision_sensitivity_task,
+    set_gripper_enable_task,
+    set_gripper_position_task,
+    get_gripper_position_task,
+    open_bio_gripper_task,
+    close_bio_gripper_task,
 )
 
 
@@ -180,6 +185,120 @@ def joint_movement_flow(ip: str):
         logger.info("Disconnected from robot")
 
 
+@flow(name="gripper-control-flow")
+def gripper_control_flow(ip: str):
+    """
+    Gripper control flow that demonstrates gripper operations with Prefect.
+    
+    Args:
+        ip: IP address of the xArm robot
+    """
+    logger = get_run_logger()
+    logger.info(f"=== GRIPPER CONTROL FLOW ===")
+    logger.info(f"Connecting to xArm at {ip}")
+    
+    # Initialize robot connection
+    arm = XArmAPI(ip, do_not_open=True)
+    arm.connect()
+    
+    try:
+        # Initialize robot state
+        logger.info("Initializing robot state...")
+        motion_enable_task(arm, enable=True)
+        set_mode_task(arm, mode=0)
+        set_state_task(arm, state=0)
+        
+        # Enable gripper
+        logger.info("Enabling gripper...")
+        set_gripper_enable_task(arm, enable=True)
+        time.sleep(1)
+        
+        # Get current gripper position
+        code, initial_pos = get_gripper_position_task(arm)
+        logger.info(f"Initial gripper position: {initial_pos}")
+        
+        # Open gripper (position 850)
+        logger.info("Opening gripper...")
+        set_gripper_position_task(arm, pos=850, wait=True, speed=5000)
+        time.sleep(1)
+        
+        # Get gripper position after opening
+        code, open_pos = get_gripper_position_task(arm)
+        logger.info(f"Gripper position after opening: {open_pos}")
+        
+        # Close gripper (position 0)
+        logger.info("Closing gripper...")
+        set_gripper_position_task(arm, pos=0, wait=True, speed=5000)
+        time.sleep(1)
+        
+        # Get final gripper position
+        code, closed_pos = get_gripper_position_task(arm)
+        logger.info(f"Gripper position after closing: {closed_pos}")
+        
+        logger.info("✅ Gripper flow completed successfully!")
+        
+    except Exception as e:
+        logger.error(f"❌ Flow failed: {e}")
+        raise
+    finally:
+        # Disconnect
+        arm.disconnect()
+        logger.info("Disconnected from robot")
+
+
+@flow(name="bio-gripper-control-flow")
+def bio_gripper_control_flow(ip: str):
+    """
+    BIO gripper control flow that demonstrates BIO gripper operations with Prefect.
+    
+    Args:
+        ip: IP address of the xArm robot
+    """
+    logger = get_run_logger()
+    logger.info(f"=== BIO GRIPPER CONTROL FLOW ===")
+    logger.info(f"Connecting to xArm at {ip}")
+    
+    # Initialize robot connection
+    arm = XArmAPI(ip, do_not_open=True)
+    arm.connect()
+    
+    try:
+        # Initialize robot state
+        logger.info("Initializing robot state...")
+        motion_enable_task(arm, enable=True)
+        set_mode_task(arm, mode=0)
+        set_state_task(arm, state=0)
+        
+        # Enable BIO gripper
+        logger.info("Enabling BIO gripper...")
+        set_bio_gripper_enable_task(arm, enable=True, wait=True)
+        time.sleep(1)
+        
+        # Open BIO gripper
+        logger.info("Opening BIO gripper...")
+        open_bio_gripper_task(arm, speed=0, wait=True)
+        time.sleep(1)
+        
+        # Close BIO gripper
+        logger.info("Closing BIO gripper...")
+        close_bio_gripper_task(arm, speed=0, wait=True)
+        time.sleep(1)
+        
+        # Open again
+        logger.info("Opening BIO gripper again...")
+        open_bio_gripper_task(arm, speed=0, wait=True)
+        
+        logger.info("✅ BIO gripper flow completed successfully!")
+        
+    except Exception as e:
+        logger.error(f"❌ Flow failed: {e}")
+        raise
+    finally:
+        # Disconnect
+        arm.disconnect()
+        logger.info("Disconnected from robot")
+
+
 if __name__ == "__main__":
     # Get IP address from command line or config
     if len(sys.argv) >= 2:
@@ -197,7 +316,16 @@ if __name__ == "__main__":
                 sys.exit(1)
     
     # Select which flow to run
-    if len(sys.argv) >= 3 and sys.argv[2] == 'joint':
-        joint_movement_flow(ip)
+    if len(sys.argv) >= 3:
+        if sys.argv[2] == 'joint':
+            joint_movement_flow(ip)
+        elif sys.argv[2] == 'gripper':
+            gripper_control_flow(ip)
+        elif sys.argv[2] == 'bio':
+            bio_gripper_control_flow(ip)
+        else:
+            print(f"Unknown flow: {sys.argv[2]}")
+            print("Available flows: joint, gripper, bio")
+            sys.exit(1)
     else:
         simple_movement_flow(ip)
