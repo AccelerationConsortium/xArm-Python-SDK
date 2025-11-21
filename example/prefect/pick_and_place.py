@@ -17,11 +17,7 @@ Requirements:
     pip install prefect
 
 Usage:
-    # Use default locations (relative to home position)
     python pick_and_place.py 192.168.1.113
-    
-    # Or specify custom pick and place locations in code
-    # See the example in the main block below
 """
 
 import os
@@ -33,19 +29,98 @@ from prefect import flow
 from xarm.wrapper import XArmAPI
 
 
+# Hardcoded coordinate mappings for lab equipment locations
+# All coordinates in mm and degrees: [x, y, z, roll, pitch, yaw]
+LOCATION_MAPPINGS = {
+    "vial_racks": {
+        "dx7b": {
+            "base_position": [300, 0, 150, 180, 0, 0],
+            "row_offset": 25,  # mm between rows
+            "column_offset": 25,  # mm between columns
+            "rows": ["a", "b", "c", "d"],
+            "columns": ["1", "2", "3", "4"]
+        },
+        "dx8c": {
+            "base_position": [300, 150, 150, 180, 0, 0],
+            "row_offset": 25,
+            "column_offset": 25,
+            "rows": ["a", "b", "c", "d"],
+            "columns": ["1", "2", "3", "4"]
+        }
+    },
+    "storage": {
+        "shelf_a": {
+            "position": [400, 100, 200, 180, 0, 0]
+        },
+        "shelf_b": {
+            "position": [400, 200, 200, 180, 0, 0]
+        }
+    }
+}
+
+
+def resolve_location(location_descriptor: dict) -> list:
+    """
+    Resolve an abstracted location descriptor to actual coordinates.
+    
+    Args:
+        location_descriptor: Dict describing the location, e.g.
+                           {"vial_rack_id": "dx7b", "row": "a", "column": "1"}
+                           or {"storage_id": "shelf_a"}
+    
+    Returns:
+        List of coordinates [x, y, z, roll, pitch, yaw]
+    """
+    # Handle vial rack locations
+    if "vial_rack_id" in location_descriptor:
+        rack_id = location_descriptor["vial_rack_id"]
+        row = location_descriptor.get("row", "a")
+        column = location_descriptor.get("column", "1")
+        
+        if rack_id not in LOCATION_MAPPINGS["vial_racks"]:
+            raise ValueError(f"Unknown vial rack ID: {rack_id}")
+        
+        rack = LOCATION_MAPPINGS["vial_racks"][rack_id]
+        base_pos = rack["base_position"].copy()
+        
+        # Calculate offsets
+        row_index = rack["rows"].index(row.lower())
+        col_index = rack["columns"].index(column)
+        
+        # Apply offsets to base position
+        base_pos[0] += col_index * rack["column_offset"]
+        base_pos[1] += row_index * rack["row_offset"]
+        
+        return base_pos
+    
+    # Handle storage locations
+    elif "storage_id" in location_descriptor:
+        storage_id = location_descriptor["storage_id"]
+        
+        if storage_id not in LOCATION_MAPPINGS["storage"]:
+            raise ValueError(f"Unknown storage ID: {storage_id}")
+        
+        return LOCATION_MAPPINGS["storage"][storage_id]["position"].copy()
+    
+    else:
+        raise ValueError("Location descriptor must contain 'vial_rack_id' or 'storage_id'")
+
+
 @flow(name="pick-and-place")
 def pick_and_place_flow(ip: str, object_name: str = "object", 
-                        pick_location: list = None, place_location: list = None):
+                        pick_location: dict = None, place_location: dict = None):
     """
-    Simple pick-and-place flow with parameterized pick/place locations and hardcoded movements.
+    Simple pick-and-place flow with abstracted location descriptors and hardcoded movements.
     
     Args:
         ip: IP address of the xArm robot
         object_name: Name/description of the object being picked (for logging)
-        pick_location: [x, y, z, roll, pitch, yaw] coordinates for pick location (mm, degrees)
-                      If None, uses home position with small offset
-        place_location: [x, y, z, roll, pitch, yaw] coordinates for place location (mm, degrees)
-                       If None, uses pick location with 100mm horizontal offset
+        pick_location: Location descriptor dict, e.g.
+                      {"vial_rack_id": "dx7b", "row": "a", "column": "1"}
+                      or {"storage_id": "shelf_a"}
+                      If None, uses default vial rack location
+        place_location: Location descriptor dict (same format as pick_location)
+                       If None, uses default storage location
     """
     # Initialize robot
     arm = XArmAPI(ip, do_not_open=True)
@@ -62,37 +137,35 @@ def pick_and_place_flow(ip: str, object_name: str = "object",
         arm.move_gohome(wait=True)
         time.sleep(0.5)
         
-        # Get current position for reference if locations not provided
-        code, home_pos = arm.get_position()
-        
-        # Set default pick location if not provided (5cm forward, 5cm down from home)
+        # Set default locations if not provided
         if pick_location is None:
-            pick_location = [home_pos[0] + 50, home_pos[1], home_pos[2] - 50,
-                           home_pos[3], home_pos[4], home_pos[5]]
+            pick_location = {"vial_rack_id": "dx7b", "row": "a", "column": "1"}
         
-        # Set default place location if not provided (10cm to the side from pick)
         if place_location is None:
-            place_location = [pick_location[0], pick_location[1] + 100, pick_location[2],
-                            pick_location[3], pick_location[4], pick_location[5]]
+            place_location = {"storage_id": "shelf_a"}
+        
+        # Resolve abstract locations to actual coordinates (hardcoded mappings)
+        pick_coords = resolve_location(pick_location)
+        place_coords = resolve_location(place_location)
         
         print(f"🤖 Starting pick-and-place for: {object_name}")
-        print(f"   Pick from: {pick_location[:3]}")
-        print(f"   Place at: {place_location[:3]}")
+        print(f"   Pick from: {pick_location} → {pick_coords[:3]}")
+        print(f"   Place at: {place_location} → {place_coords[:3]}")
         
-        # Enable and open gripper
+        # Enable and open gripper (hardcoded gripper settings)
         arm.set_gripper_enable(True)
         time.sleep(0.5)
         arm.set_gripper_position(850, wait=True, speed=5000)  # Open
         time.sleep(0.5)
         
-        # Move to pick position (hardcoded movement: approach from above)
-        approach_pos = [pick_location[0], pick_location[1], pick_location[2] + 50,  # 5cm above
-                       pick_location[3], pick_location[4], pick_location[5]]
+        # Move to pick position (hardcoded movement: approach from 5cm above)
+        approach_pos = [pick_coords[0], pick_coords[1], pick_coords[2] + 50,
+                       pick_coords[3], pick_coords[4], pick_coords[5]]
         arm.set_position(*approach_pos, wait=True, speed=100)
         time.sleep(0.5)
         
-        # Lower to pick position (hardcoded 5cm down)
-        arm.set_position(*pick_location, wait=True, speed=100)
+        # Lower to pick position (hardcoded descent)
+        arm.set_position(*pick_coords, wait=True, speed=100)
         time.sleep(0.5)
         
         # Close gripper to grasp (hardcoded gripper position)
@@ -101,19 +174,19 @@ def pick_and_place_flow(ip: str, object_name: str = "object",
         time.sleep(0.5)
         
         # Lift up (hardcoded 10cm lift)
-        lift_pos = [pick_location[0], pick_location[1], pick_location[2] + 100,
-                   pick_location[3], pick_location[4], pick_location[5]]
+        lift_pos = [pick_coords[0], pick_coords[1], pick_coords[2] + 100,
+                   pick_coords[3], pick_coords[4], pick_coords[5]]
         arm.set_position(*lift_pos, wait=True, speed=100)
         time.sleep(0.5)
         
-        # Move to place location (keeping same height)
-        place_approach = [place_location[0], place_location[1], lift_pos[2],
-                         place_location[3], place_location[4], place_location[5]]
+        # Move to place location (keeping same height, hardcoded movement)
+        place_approach = [place_coords[0], place_coords[1], lift_pos[2],
+                         place_coords[3], place_coords[4], place_coords[5]]
         arm.set_position(*place_approach, wait=True, speed=100)
         time.sleep(0.5)
         
         # Lower to place position (hardcoded descent)
-        arm.set_position(*place_location, wait=True, speed=100)
+        arm.set_position(*place_coords, wait=True, speed=100)
         time.sleep(0.5)
         
         # Release gripper (hardcoded open position)
@@ -122,8 +195,8 @@ def pick_and_place_flow(ip: str, object_name: str = "object",
         time.sleep(0.5)
         
         # Lift up slightly before returning home (hardcoded 5cm lift)
-        retract_pos = [place_location[0], place_location[1], place_location[2] + 50,
-                      place_location[3], place_location[4], place_location[5]]
+        retract_pos = [place_coords[0], place_coords[1], place_coords[2] + 50,
+                      place_coords[3], place_coords[4], place_coords[5]]
         arm.set_position(*retract_pos, wait=True, speed=100)
         time.sleep(0.5)
         
@@ -155,14 +228,21 @@ if __name__ == "__main__":
                 print('Input error, exit')
                 sys.exit(1)
     
-    # Example 1: Use default locations (relative to home position)
-    pick_and_place_flow(ip, object_name="small box")
+    # Example 1: Use default locations
+    pick_and_place_flow(ip, object_name="vial")
     
-    # Example 2: Specify custom pick and place locations
-    # Uncomment to use custom locations (coordinates in mm and degrees)
+    # Example 2: Pick from one vial rack location and place in another
     # pick_and_place_flow(
     #     ip=ip,
-    #     object_name="component A",
-    #     pick_location=[300, 0, 200, 180, 0, 0],  # [x, y, z, roll, pitch, yaw]
-    #     place_location=[300, 150, 200, 180, 0, 0]
+    #     object_name="sample vial",
+    #     pick_location={"vial_rack_id": "dx7b", "row": "b", "column": "2"},
+    #     place_location={"vial_rack_id": "dx8c", "row": "a", "column": "3"}
+    # )
+    
+    # Example 3: Pick from vial rack and place in storage
+    # pick_and_place_flow(
+    #     ip=ip,
+    #     object_name="experiment sample",
+    #     pick_location={"vial_rack_id": "dx7b", "row": "c", "column": "4"},
+    #     place_location={"storage_id": "shelf_b"}
     # )
