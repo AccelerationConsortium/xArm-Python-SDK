@@ -9,6 +9,16 @@
 import math
 from ..x3 import XArm, Studio
 
+# Optional Prefect integration
+try:
+    from prefect import task
+    _PREFECT_AVAILABLE = True
+except ImportError:
+    _PREFECT_AVAILABLE = False
+    # No-op decorator if Prefect is not available
+    def task(func):
+        return func
+
 
 class XArmAPI(object):
     def __init__(self, port=None, is_radian=False, do_not_open=False, **kwargs):
@@ -776,6 +786,7 @@ class XArmAPI(object):
         """
         return self._arm.send_cmd_sync(command=command)
 
+    @task
     def get_position(self, is_radian=None):
         """
         Get the cartesian position
@@ -789,6 +800,7 @@ class XArmAPI(object):
         """
         return self._arm.get_position(is_radian=is_radian)
 
+    @task
     def set_position(self, x=None, y=None, z=None, roll=None, pitch=None, yaw=None, radius=None,
                      speed=None, mvacc=None, mvtime=None, relative=False, is_radian=None,
                      wait=False, timeout=None, **kwargs):
@@ -894,6 +906,7 @@ class XArmAPI(object):
                                            speed=speed, mvacc=mvacc, mvtime=mvtime,
                                            is_radian=is_radian, wait=wait, timeout=timeout, radius=radius, **kwargs)
 
+    @task
     def get_servo_angle(self, servo_id=None, is_radian=None, is_real=False):
         """
         Get the servo angle
@@ -911,6 +924,7 @@ class XArmAPI(object):
         """
         return self._arm.get_servo_angle(servo_id=servo_id, is_radian=is_radian, is_real=is_real)
 
+    @task
     def set_servo_angle(self, servo_id=None, angle=None, speed=None, mvacc=None, mvtime=None,
                         relative=False, is_radian=None, wait=False, timeout=None, radius=None, **kwargs):
         """
@@ -1019,6 +1033,7 @@ class XArmAPI(object):
                                      is_radian=is_radian, wait=wait, timeout=timeout,
                                      is_tool_coord=is_tool_coord, is_axis_angle=is_axis_angle, **kwargs)
 
+    @task
     def move_gohome(self, speed=None, mvacc=None, mvtime=None, is_radian=None, wait=False, timeout=None, **kwargs):
         """
         Move to go home (Back to zero), the API will modify self.last_used_position and self.last_used_angles value
@@ -1432,6 +1447,7 @@ class XArmAPI(object):
         """
         return self._arm.get_is_moving()
 
+    @task
     def get_state(self):
         """
         Get state
@@ -1446,6 +1462,7 @@ class XArmAPI(object):
         """
         return self._arm.get_state()
 
+    @task
     def set_state(self, state=0):
         """
         Set the xArm state
@@ -1819,6 +1836,7 @@ class XArmAPI(object):
         """
         return self._arm.emergency_stop()
 
+    @task
     def set_gripper_enable(self, enable, **kwargs):
         """
         Set the gripper enable
@@ -1841,6 +1859,7 @@ class XArmAPI(object):
         """
         return self._arm.set_gripper_mode(mode, **kwargs)
 
+    @task
     def get_gripper_position(self, **kwargs):
         """
         Get the gripper position (pulse)
@@ -1859,6 +1878,7 @@ class XArmAPI(object):
         """
         return self._arm.get_gripper_g2_position(**kwargs)
 
+    @task
     def set_gripper_position(self, pos, wait=False, speed=None, auto_enable=False, timeout=None, **kwargs):
         """
         Set the gripper position

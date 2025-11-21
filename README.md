@@ -34,11 +34,6 @@ xArm Python SDK
   pip install xarm-python-sdk
   ```
 
-- Install with Prefect support (optional)
-  ```bash
-  pip install xarm-python-sdk[prefect]
-  ```
-
 ## Doc
 - #### [API Document](doc/api/xarm_api.md)
 
@@ -244,18 +239,6 @@ xArm Python SDK
 
 - ##### [get_report_data_with_protocol](example/wrapper/common/get_report_data_with_protocol.py)
 
-- #### Prefect Flows (Workflow Orchestration)
-  - See [Prefect Flows Examples](example/prefect_flows/) for workflow orchestration examples using Prefect
-  - Available Prefect task decorators for common operations:
-    - Position control: `get_position_task`, `set_position_task`
-    - Joint control: `get_servo_angle_task`, `set_servo_angle_task`
-    - Homing: `move_gohome_task`
-    - State management: `get_state_task`, `set_state_task`, `set_mode_task`
-    - Safety: `set_collision_sensitivity_task`
-    - Gripper: `set_gripper_enable_task`, `get_gripper_position_task`, `set_gripper_position_task`, `set_gripper_g2_position_task`
-    - BIO Gripper: `set_bio_gripper_enable_task`, `open_bio_gripper_task`, `close_bio_gripper_task`, `get_bio_gripper_status_task`, `set_bio_gripper_g2_position_task`
-    - Error handling: `clean_error_task`, `clean_warn_task`, `get_err_warn_code_task`
-  - Install with: `pip install xarm-python-sdk[prefect]`
 
 - #### Import
   ```python
@@ -264,34 +247,6 @@ xArm Python SDK
   arm = XArmAPI('192.168.1.113')
   arm = XArmAPI('192.168.1.113', do_not_open=False)
   arm = XArmAPI('192.168.1.113', is_radian=False)
-  ```
-
-- #### Prefect Flows Usage
-  ```python
-  from prefect import flow
-  from xarm.wrapper import XArmAPI
-  from xarm.prefect_flows import (
-      get_position_task,
-      set_position_task,
-      move_gohome_task,
-      set_gripper_position_task,
-  )
-
-  @flow
-  def my_robot_flow(ip: str):
-      arm = XArmAPI(ip, do_not_open=True)
-      arm.connect()
-      arm.motion_enable(enable=True)
-      arm.set_mode(0)
-      arm.set_state(0)
-      
-      # Use Prefect tasks for automatic logging and monitoring
-      code, position = get_position_task(arm)
-      set_position_task(arm, x=300, y=0, z=200, wait=True)
-      set_gripper_position_task(arm, pos=800, wait=True)
-      move_gohome_task(arm, wait=True)
-      
-      arm.disconnect()
   ```
 
 - #### Connect/Disconnect
