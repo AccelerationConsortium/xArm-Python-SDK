@@ -17,7 +17,11 @@ Requirements:
     pip install prefect
 
 Usage:
+    # Use default locations (relative to home position)
     python pick_and_place.py 192.168.1.113
+    
+    # Or specify custom pick and place locations in code
+    # See the example in the main block below
 """
 
 import os
@@ -30,12 +34,18 @@ from xarm.wrapper import XArmAPI
 
 
 @flow(name="pick-and-place")
-def pick_and_place_flow(ip: str):
+def pick_and_place_flow(ip: str, object_name: str = "object", 
+                        pick_location: list = None, place_location: list = None):
     """
-    Simple pick-and-place flow with hardcoded small movements.
+    Simple pick-and-place flow with parameterized pick/place locations and hardcoded movements.
     
     Args:
         ip: IP address of the xArm robot
+        object_name: Name/description of the object being picked (for logging)
+        pick_location: [x, y, z, roll, pitch, yaw] coordinates for pick location (mm, degrees)
+                      If None, uses home position with small offset
+        place_location: [x, y, z, roll, pitch, yaw] coordinates for place location (mm, degrees)
+                       If None, uses pick location with 100mm horizontal offset
     """
     # Initialize robot
     arm = XArmAPI(ip, do_not_open=True)
@@ -52,49 +62,75 @@ def pick_and_place_flow(ip: str):
         arm.move_gohome(wait=True)
         time.sleep(0.5)
         
+        # Get current position for reference if locations not provided
+        code, home_pos = arm.get_position()
+        
+        # Set default pick location if not provided (5cm forward, 5cm down from home)
+        if pick_location is None:
+            pick_location = [home_pos[0] + 50, home_pos[1], home_pos[2] - 50,
+                           home_pos[3], home_pos[4], home_pos[5]]
+        
+        # Set default place location if not provided (10cm to the side from pick)
+        if place_location is None:
+            place_location = [pick_location[0], pick_location[1] + 100, pick_location[2],
+                            pick_location[3], pick_location[4], pick_location[5]]
+        
+        print(f"🤖 Starting pick-and-place for: {object_name}")
+        print(f"   Pick from: {pick_location[:3]}")
+        print(f"   Place at: {place_location[:3]}")
+        
         # Enable and open gripper
         arm.set_gripper_enable(True)
         time.sleep(0.5)
         arm.set_gripper_position(850, wait=True, speed=5000)  # Open
         time.sleep(0.5)
         
-        # Move to pick position (small relative movement from home)
-        code, home_pos = arm.get_position()
-        pick_pos = [home_pos[0] + 50, home_pos[1], home_pos[2] - 50,  # 5cm forward, 5cm down
-                    home_pos[3], home_pos[4], home_pos[5]]
-        arm.set_position(*pick_pos, wait=True, speed=100)
+        # Move to pick position (hardcoded movement: approach from above)
+        approach_pos = [pick_location[0], pick_location[1], pick_location[2] + 50,  # 5cm above
+                       pick_location[3], pick_location[4], pick_location[5]]
+        arm.set_position(*approach_pos, wait=True, speed=100)
         time.sleep(0.5)
         
-        # Close gripper to grasp
+        # Lower to pick position (hardcoded 5cm down)
+        arm.set_position(*pick_location, wait=True, speed=100)
+        time.sleep(0.5)
+        
+        # Close gripper to grasp (hardcoded gripper position)
+        print(f"✋ Grasping {object_name}")
         arm.set_gripper_position(400, wait=True, speed=5000)  # Close
         time.sleep(0.5)
         
-        # Lift up
-        lift_pos = [pick_pos[0], pick_pos[1], pick_pos[2] + 100,  # 10cm up
-                    pick_pos[3], pick_pos[4], pick_pos[5]]
+        # Lift up (hardcoded 10cm lift)
+        lift_pos = [pick_location[0], pick_location[1], pick_location[2] + 100,
+                   pick_location[3], pick_location[4], pick_location[5]]
         arm.set_position(*lift_pos, wait=True, speed=100)
         time.sleep(0.5)
         
-        # Move to place position (small horizontal movement)
-        place_pos = [lift_pos[0], lift_pos[1] + 100, lift_pos[2],  # 10cm to the side
-                     lift_pos[3], lift_pos[4], lift_pos[5]]
-        arm.set_position(*place_pos, wait=True, speed=100)
+        # Move to place location (keeping same height)
+        place_approach = [place_location[0], place_location[1], lift_pos[2],
+                         place_location[3], place_location[4], place_location[5]]
+        arm.set_position(*place_approach, wait=True, speed=100)
         time.sleep(0.5)
         
-        # Lower to place
-        lower_pos = [place_pos[0], place_pos[1], place_pos[2] - 50,  # 5cm down
-                     place_pos[3], place_pos[4], place_pos[5]]
-        arm.set_position(*lower_pos, wait=True, speed=100)
+        # Lower to place position (hardcoded descent)
+        arm.set_position(*place_location, wait=True, speed=100)
         time.sleep(0.5)
         
-        # Release gripper
+        # Release gripper (hardcoded open position)
+        print(f"📦 Placing {object_name}")
         arm.set_gripper_position(850, wait=True, speed=5000)  # Open
+        time.sleep(0.5)
+        
+        # Lift up slightly before returning home (hardcoded 5cm lift)
+        retract_pos = [place_location[0], place_location[1], place_location[2] + 50,
+                      place_location[3], place_location[4], place_location[5]]
+        arm.set_position(*retract_pos, wait=True, speed=100)
         time.sleep(0.5)
         
         # Return to home
         arm.move_gohome(wait=True)
         
-        print("✅ Pick-and-place completed successfully!")
+        print(f"✅ Pick-and-place of {object_name} completed successfully!")
         
     except Exception as e:
         print(f"❌ Flow failed: {e}")
@@ -119,4 +155,14 @@ if __name__ == "__main__":
                 print('Input error, exit')
                 sys.exit(1)
     
-    pick_and_place_flow(ip)
+    # Example 1: Use default locations (relative to home position)
+    pick_and_place_flow(ip, object_name="small box")
+    
+    # Example 2: Specify custom pick and place locations
+    # Uncomment to use custom locations (coordinates in mm and degrees)
+    # pick_and_place_flow(
+    #     ip=ip,
+    #     object_name="component A",
+    #     pick_location=[300, 0, 200, 180, 0, 0],  # [x, y, z, roll, pitch, yaw]
+    #     place_location=[300, 150, 200, 180, 0, 0]
+    # )
