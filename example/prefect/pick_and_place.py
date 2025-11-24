@@ -108,7 +108,8 @@ def resolve_location(location_descriptor: dict) -> list:
 
 @flow(name="pick-and-place")
 def pick_and_place_flow(ip: str, object_name: str = "object", 
-                        pick_location: dict = None, place_location: dict = None):
+                        pick_location: dict = {"vial_rack_id": "dx7b", "row": "a", "column": "1"}, 
+                        place_location: dict = {"storage_id": "shelf_a"}):
     """
     Simple pick-and-place flow with abstracted location descriptors and hardcoded movements.
     
@@ -118,9 +119,9 @@ def pick_and_place_flow(ip: str, object_name: str = "object",
         pick_location: Location descriptor dict, e.g.
                       {"vial_rack_id": "dx7b", "row": "a", "column": "1"}
                       or {"storage_id": "shelf_a"}
-                      If None, uses default vial rack location
+                      Defaults to vial rack location dx7b, row a, column 1
         place_location: Location descriptor dict (same format as pick_location)
-                       If None, uses default storage location
+                       Defaults to storage shelf_a
     """
     # Initialize robot
     arm = XArmAPI(ip, do_not_open=True)
@@ -136,13 +137,6 @@ def pick_and_place_flow(ip: str, object_name: str = "object",
         # Move to home position
         arm.move_gohome(wait=True)
         time.sleep(0.5)
-        
-        # Set default locations if not provided
-        if pick_location is None:
-            pick_location = {"vial_rack_id": "dx7b", "row": "a", "column": "1"}
-        
-        if place_location is None:
-            place_location = {"storage_id": "shelf_a"}
         
         # Resolve abstract locations to actual coordinates (hardcoded mappings)
         pick_coords = resolve_location(pick_location)
