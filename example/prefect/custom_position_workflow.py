@@ -207,6 +207,9 @@ def cleanup_robot(arm: XArmAPI):
     logger.info("Cleaning up robot connections")
     
     try:
+        # Re-enable servos before disconnecting to prevent arm drop on e-stop
+        arm.set_state(3)  # Enable servo motors
+        time.sleep(0.5)   # Allow state to settle
         arm.disconnect()
         logger.info("Robot cleanup completed")
     except Exception as e:
