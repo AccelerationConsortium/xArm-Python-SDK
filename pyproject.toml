@@ -44,6 +44,9 @@ classifiers = [
 # license = "BSD-3-Clause"
 # license-files = ["LICEN[CS]E*"]
 
+[project.optional-dependencies]
+prefect = ["prefect>=2.0.0"]
+
 [project.urls]
 Homepage = "https://www.ufactory.cc"
 Documentation = "https://github.com/xArm-Developer/xArm-Python-SDK/blob/master/doc/api/xarm_api.md"

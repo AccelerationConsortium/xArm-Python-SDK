@@ -1,0 +1,41 @@
+# Welcome to your prefect.yaml file! You can use this file for storing and managing
+# configuration for deploying your flows. We recommend committing this file to source
+# control along with your flow code.
+
+# Generic metadata about this project
+name: prefect
+prefect-version: 3.6.4
+
+# build section allows you to manage and build docker images
+build: null
+
+# push section allows you to manage if and how this project is uploaded to remote locations
+push: null
+
+# pull section allows you to provide instructions for cloning this project in remote locations
+pull:
+- prefect.deployments.steps.set_working_directory:
+    directory: /home/ac/xArm-Python-SDK/example/prefect
+
+# the deployments section allows you to provide configuration for deploying flows
+deployments:
+- name: xarm-pick-place-production
+  version: null
+  tags: []
+  concurrency_limit: null
+  description: |-
+    Main Prefect flow for xArm pick and place operations
+
+    Args:
+        robot_ip: IP address of the xArm robot
+        cycles: Number of pick-place cycles to execute
+
+    Returns:
+        WorkflowMetrics: Comprehensive workflow execution data
+  entrypoint: pick_place_workflow.py:pick_and_place_workflow
+  parameters: {}
+  work_pool:
+    name: default-process-pool
+    work_queue_name: null
+    job_variables: {}
+  schedules: []
